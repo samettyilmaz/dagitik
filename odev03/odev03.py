@@ -2,6 +2,7 @@
 import sys
 import Queue
 import threading
+import datetime as dt
 import time
 
 exitFlag = 0
@@ -11,8 +12,15 @@ if (len(sys.argv) != 4):
 
 alphabet = list('abcdefghijklmnopqrstuvwxyz')
 s,n,l= int(sys.argv[1]),int(sys.argv[2]),int(sys.argv[3])
-i,j,wordList,finalList,worker_list,crypte_siralamasi=0,0,[],[],[],[]
-input_txt=open("metin.txt") 
+i,j,wordList,finalList=0,0,[],[]
+
+try:
+    output_text=open("crypted_%s_%s_%s.txt" %(s,n,l),"w")
+    input_txt=open("metin.txt")
+except:
+    print "failed ." 
+
+
 dataList =((input_txt.read()).lower()) 
 
 
@@ -27,30 +35,35 @@ def encrypt(text_to_encrypt):
         return cipher
 
 class myThread (threading.Thread):
-    def __init__(self, threadID, name, q):
+    workorder=0
+    def __init__(self, threadID, order, q):
+
         threading.Thread.__init__(self)
         self.threadID = threadID
-        self.name = name
+        self.order = order
         self.q = q
     def run(self):
-        print "Starting " + self.name
-        process_data(self.name, self.q)
-        print "Exiting " + self.name
+        process_data(self, self.q)
+        
 
-def process_data(threadName, q):
+def process_data(thread, q):
     while not exitFlag:
-        queueLock.acquire()
+        inputqueueLock.acquire()
         if not workQueue.empty():
             data = q.get()
-            queueLock.release()
-            worker_list.append(threadName)
-            crypte_siralamasi.append(threadName)
+            thread.order = myThread.workorder
+            myThread.workorder+=1
+            inputqueueLock.release()
             data2=encrypt(data)
-            finalList.append(data2)
+            outputqueueLock.acquire()
+            output_text.seek(thread.order*l)
+            output_text.write(data2)
+            outputqueueLock.release()
+            
             
             
         else:
-            queueLock.release()
+            inputqueueLock.release()
         time.sleep(0.1)
 
 
@@ -62,25 +75,27 @@ while j < int(len(dataList)):
     j+=l
 
 
-queueLock = threading.Lock()
+inputqueueLock = threading.Lock()
+outputqueueLock = threading.Lock()
 workQueue = Queue.Queue()
+finalQueue = Queue.Queue()
 threads = []
 threadID = 1
 
 # Create new threads
 for r in xrange(n):
-    tName="Thread-{}".format(r + 1)
-    thread = myThread(threadID, tName, workQueue)
+    
+    thread = myThread(r, 0, workQueue)
     thread.start()
     threads.append(thread)
-    threadID += 1
+    
 
 # Fill the queue
-queueLock.acquire()
-
+inputqueueLock.acquire()
 for word in wordList:
     workQueue.put(word)
-queueLock.release()
+inputqueueLock.release()
+
 
 
 
@@ -94,10 +109,12 @@ exitFlag = 1
 for t in threads:
     t.join()
     
-output_text=open("crypted_%s_%s_%s.txt" %(s,n,l),"w")
 
-crypted_text= ''.join(finalList)
-output_text.write(crypted_text)
+
+#crypted_text= ''.join(finalList)
+#output_text.write(crypted_text)
+output_text.close()
+input_txt.close()
 
 
 print "Exiting Main Thread"
